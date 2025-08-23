@@ -6,7 +6,7 @@ import re
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # Initialize model
-model = genai.GenerativeModel("gemini-pro")
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Function to get explanation + examples
 def get_explanation(topic, subject):
