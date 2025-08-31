@@ -1,14 +1,14 @@
 import streamlit as st
 import google.generativeai as genai
 import re
+import io
+import xmind_sdk as xmind   # install with: pip install xmind-sdk
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# Initialize model
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# Function to get explanation + examples
+# ---------- AI Functions ----------
 def get_explanation(topic, subject):
     prompt = f"""
     Give a short explanation about {topic} in {subject} with simple language.
@@ -17,7 +17,6 @@ def get_explanation(topic, subject):
     response = model.generate_content(prompt)
     return response.text
 
-# Function to generate 5 questions with answers
 def get_questions(topic, subject):
     prompt = f"""
     Generate 5 questions with correct answers about {topic} in {subject}.
@@ -31,28 +30,44 @@ def get_questions(topic, subject):
         qa_pairs.append((match[0].strip(), match[1].strip()))
     return qa_pairs
 
-# Function to check answers (loose matching)
 def check_answer(user_ans, correct_ans):
     user_ans = user_ans.lower()
     correct_ans = correct_ans.lower()
     return all(word in user_ans for word in correct_ans.split()[:2])  # simple keyword check
 
-# Function to generate mind map outline
-def generate_mindmap(topic, subject):
+def generate_mindmap_outline(topic, subject):
     prompt = f"""
     Create a structured mind map for the topic: {topic} in {subject}.
-    Use short phrases and hierarchy with bullet points.
-    Format like:
-    - Main Topic
+    Use bullet points, short labels:
+    - Main topic
       - Subtopic
         - Point A
         - Point B
-      - Subtopic 2
-        - Example
+    Make at least two levels deep.
     """
-    response = model.generate_content(prompt)
-    return response.text
+    return model.generate_content(prompt).text
 
+def outline_to_xmind(outline_text, root_title):
+    doc = xmind.XMindDocument.create("Sheet 1", root_title)
+    sheet = doc.get_first_sheet()
+    root = sheet.get_root_topic()
+
+    # Parse bullet format and build tree
+    stack = [(0, root)]
+    for line in outline_text.splitlines():
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if not stripped.startswith("-"):
+            continue
+        title = stripped[1:].strip()
+        while stack and indent <= stack[-1][0]:
+            stack.pop()
+        parent = stack[-1][1]
+        node = parent.add_subtopic(title)
+        stack.append((indent, node))
+    return doc
+
+# ---------- Streamlit UI ----------
 st.title("📚 AI Learning Assistant")
 st.write("Learn English, Math, and Science interactively!")
 
@@ -62,22 +77,20 @@ tabs = st.tabs(["📖 English", "➗ Math", "🔬 Science"])
 for i, subject in enumerate(["English", "Math", "Science"]):
     with tabs[i]:
         st.header(f"{subject} Learning")
-        topic = st.text_input(f"Enter a {subject} topic:", key=f"{subject}_topic")
+        topic = st.text_input(f"Enter a {subject} topic:", key=f"topic_{subject}")
 
-        if st.button(f"Generate {subject} Content", key=f"{subject}_content"):
+        if st.button(f"Generate {subject} Content", key=f"gen_{subject}"):
             if topic.strip():
                 with st.spinner("Generating content..."):
                     explanation = get_explanation(topic, subject)
                     qa_pairs = get_questions(topic, subject)
-                    mindmap = generate_mindmap(topic, subject)
+                    outline = generate_mindmap_outline(topic, subject)
 
+                # Explanation
                 st.subheader("📘 Explanation with Examples")
                 st.markdown(explanation)
 
-                st.subheader("🧠 Mind Map")
-                st.markdown(mindmap)
-                st.info("Tip: You can copy this outline and paste it into XMind (Import → Markdown).")
-
+                # Questions
                 st.subheader("📝 Practice Questions")
                 answers = {}
                 for idx, (q, a) in enumerate(qa_pairs):
@@ -87,7 +100,7 @@ for i, subject in enumerate(["English", "Math", "Science"]):
                         "correct": a
                     }
 
-                if st.button(f"Check {subject} Answers", key=f"{subject}_check"):
+                if st.button(f"Check {subject} Answers", key=f"check_{subject}"):
                     st.subheader("✅ Results")
                     score = 0
                     for idx, ans in answers.items():
@@ -100,5 +113,22 @@ for i, subject in enumerate(["English", "Math", "Science"]):
                         else:
                             st.error("❌ Incorrect")
                     st.write(f"**Your Score: {score}/5**")
+
+                # Mind map
+                st.subheader("🧠 Mind Map")
+                st.text(outline)
+
+                # Convert to XMind and enable download
+                doc = outline_to_xmind(outline, topic)
+                buf = io.BytesIO()
+                doc.save(buf)
+                buf.seek(0)
+
+                st.download_button(
+                    label="⬇️ Download Mind Map (.xmind)",
+                    data=buf,
+                    file_name=f"{topic}_mindmap.xmind",
+                    mime="application/octet-stream"
+                )
             else:
                 st.warning("Please enter a topic!")
