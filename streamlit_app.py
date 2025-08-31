@@ -37,6 +37,22 @@ def check_answer(user_ans, correct_ans):
     correct_ans = correct_ans.lower()
     return all(word in user_ans for word in correct_ans.split()[:2])  # simple keyword check
 
+# Function to generate mind map outline
+def generate_mindmap(topic, subject):
+    prompt = f"""
+    Create a structured mind map for the topic: {topic} in {subject}.
+    Use short phrases and hierarchy with bullet points.
+    Format like:
+    - Main Topic
+      - Subtopic
+        - Point A
+        - Point B
+      - Subtopic 2
+        - Example
+    """
+    response = model.generate_content(prompt)
+    return response.text
+
 st.title("📚 AI Learning Assistant")
 st.write("Learn English, Math, and Science interactively!")
 
@@ -46,16 +62,21 @@ tabs = st.tabs(["📖 English", "➗ Math", "🔬 Science"])
 for i, subject in enumerate(["English", "Math", "Science"]):
     with tabs[i]:
         st.header(f"{subject} Learning")
-        topic = st.text_input(f"Enter a {subject} topic:")
-        
-        if st.button(f"Generate {subject} Content"):
+        topic = st.text_input(f"Enter a {subject} topic:", key=f"{subject}_topic")
+
+        if st.button(f"Generate {subject} Content", key=f"{subject}_content"):
             if topic.strip():
                 with st.spinner("Generating content..."):
                     explanation = get_explanation(topic, subject)
                     qa_pairs = get_questions(topic, subject)
+                    mindmap = generate_mindmap(topic, subject)
 
                 st.subheader("📘 Explanation with Examples")
                 st.markdown(explanation)
+
+                st.subheader("🧠 Mind Map")
+                st.markdown(mindmap)
+                st.info("Tip: You can copy this outline and paste it into XMind (Import → Markdown).")
 
                 st.subheader("📝 Practice Questions")
                 answers = {}
@@ -66,7 +87,7 @@ for i, subject in enumerate(["English", "Math", "Science"]):
                         "correct": a
                     }
 
-                if st.button(f"Check {subject} Answers"):
+                if st.button(f"Check {subject} Answers", key=f"{subject}_check"):
                     st.subheader("✅ Results")
                     score = 0
                     for idx, ans in answers.items():
