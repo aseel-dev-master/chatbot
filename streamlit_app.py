@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import re
 import io
-import xmind_sdk as xmind   # install with: pip install xmind-sdk
+import xmind    # install with: pip install xmind-sdk
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
